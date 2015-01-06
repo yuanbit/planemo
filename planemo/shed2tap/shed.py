@@ -1,3 +1,7 @@
+""" Abstractions for Tool Shed constructs.
+
+Specifically for reasoning about repositories and tool dependecy definitions.
+"""
 from __future__ import print_function
 
 from xml.etree import ElementTree
@@ -11,7 +15,7 @@ TOOLSHED_MAP = {
 }
 
 
-class Dependencies(object):
+class BaseDependencies(object):
     """ Base class for parsing Tool Shed dependency files.
     """
 
@@ -70,6 +74,7 @@ class Repo(object):
         for key, value in kwds.iteritems():
             setattr(self, key, value)
 
+    # TODO: Refactor out brew specific functionality.
     def recipe_base_name(self):
         owner = self.owner.replace("-", "")
         name = self.name
@@ -174,25 +179,6 @@ class BasePackage(object):
             last_action = all_actions[-1]
             return (not last_action.architecture) and (not last_action.os)
 
-    def has_explicit_set_environments(self):
-        all_actions = self.all_actions
-        for actions in all_actions:
-            for action in actions.actions:
-                if action.explicit_variables:
-                    return True
-        return False
-
-    def has_multiple_set_environments(self):
-        all_actions = self.all_actions
-        for actions in all_actions:
-            count = 0
-            for action in actions.actions:
-                if action.explicit_variables:
-                    count += 1
-            if count > 1:
-                return True
-        return False
-
     def parse_actions(self, actions):
         os = actions.attrib.get("os", None)
         architecture = actions.get("architecture", None)
@@ -241,14 +227,14 @@ class Actions(object):
 
     def first_download(self):
         for action in self.actions:
-            if action.type in ["download_by_url", "download_file"]:
+            if action.action_type in ["download_by_url", "download_file"]:
                 return action
         return None
 
     def downloads(self):
         actions = []
         for action in self.actions:
-            if action.type in ["download_by_url", "download_file"]:
+            if action.action_type in ["download_by_url", "download_file"]:
                 actions.append(action)
         return actions
 
@@ -267,10 +253,16 @@ class ActionPackage(object):
         self.repo = repo
 
 
+def dispatch_on_action(obj, action, default_function):
+    method_name = "handle_%s" % (action.action_type)
+    handle_function = getattr(obj, method_name, default_function)
+    return handle_function(action)
+
+
 class BaseAction(object):
 
     def __repr__(self):
-        return "Action[type=%s]" % self.type
+        return "Action[type=%s]" % self.action_type
 
     def same_as(self, other):
         if self._keys != other._keys:
@@ -351,7 +343,7 @@ class TemplateShellCommandAction(BaseAction):
 
 class MoveFileAction(BaseAction):
     action_type = "move_file"
-    _keys = ["move_file"]
+    _keys = ["source", "destination"]
 
     def __init__(self, elem):
         self.source = elem.find("source").text

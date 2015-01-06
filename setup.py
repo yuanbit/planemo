@@ -66,9 +66,11 @@ setup(
         'planemo_ext.galaxy.tools.deps.resolvers',
         'planemo_ext.galaxy.util',
     ],
+    scripts=["scripts/sync_shed"],
     entry_points='''
         [console_scripts]
         planemo=planemo.cli:planemo
+        shed2tap=planemo.shed2tap.brew:main
     ''',
     package_data={'planemo_ext': ['galaxy/util/docutils_template.txt',
                                   'tool_factory_2/rgToolFactory2.xml',
