@@ -30,6 +30,8 @@ REPOSITORY_DOWNLOAD_TEMPLATE = (
 
 
 def shed_repo_config(path):
+    if os.path.isfile(path):
+        path = os.path.dirname(path)
     shed_yaml_path = os.path.join(path, ".shed.yml")
     if os.path.exists(shed_yaml_path):
         with open(shed_yaml_path, "r") as f:
@@ -69,14 +71,22 @@ def tool_shed_client(ctx, **kwds):
     return tsi
 
 
-def find_repository_id(ctx, tsi, path, **kwds):
+def repo_name_and_owner(ctx, path, **kwds):
+    """ Infer Tool Shed repository owner and name from environment.
+    """
     repo_config = shed_repo_config(path)
     owner = kwds.get("owner", None) or repo_config.get("owner", None)
+    name = kwds.get("name", None) or repo_config.get("name", None)
     name = kwds.get("name", None) or repo_config.get("name", None)
     if owner is None:
         owner = ctx.global_config.get("shed_username", None)
     if name is None:
         name = os.path.basename(os.path.abspath(path))
+    return owner, name
+
+
+def find_repository_id(ctx, tsi, path, **kwds):
+    name, owner = repo_name_and_owner(ctx, path, **kwds)
     repos = tsi.repositories.get_repositories()
 
     def matches(r):

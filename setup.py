@@ -33,6 +33,7 @@ setup(
         'planemo',
         'planemo.commands',
         'planemo.reports',
+        'planemo.shed2tap',
         'galaxy',
         'galaxy.eggs',
         'galaxy.tools',
