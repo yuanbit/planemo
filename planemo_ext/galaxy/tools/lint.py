@@ -7,14 +7,17 @@ LEVEL_WARN = "warn"
 LEVEL_ERROR = "error"
 
 
-def lint_xml(tool_xml, level=LEVEL_ALL, fail_level=LEVEL_WARN):
+def lint_xml(tool_xml, use_schema=False, level=LEVEL_ALL, fail_level=LEVEL_WARN):
     import galaxy.tools.linters
-    lint_context = LintContext(level=level)
+    lint_context = LintContext(level=level, use_schema=use_schema)
     linter_modules = submodules.submodules(galaxy.tools.linters)
     for module in linter_modules:
         for (name, value) in inspect.getmembers(module):
             if callable(value) and name.startswith("lint_"):
-                lint_context.lint(module, name, value, tool_xml)
+                try:
+                    lint_context.lint(module, name, value, tool_xml)
+                except SkipLint:
+                    pass
     found_warns = lint_context.found_warns
     found_errors = lint_context.found_errors
     if fail_level == LEVEL_WARN:
@@ -26,10 +29,11 @@ def lint_xml(tool_xml, level=LEVEL_ALL, fail_level=LEVEL_WARN):
 
 class LintContext(object):
 
-    def __init__(self, level):
+    def __init__(self, level, use_schema):
         self.level = level
         self.found_errors = False
         self.found_warns = False
+        self.use_schema = use_schema
 
     def lint(self, module, name, lint_func, tool_xml):
         name = name.replace("tsts", "tests")
@@ -89,3 +93,7 @@ class LintContext(object):
 
     def warn(self, message, *args):
         self.__handle_message(self.warn_messages, message, *args)
+
+
+class SkipLint(Exception):
+    pass
