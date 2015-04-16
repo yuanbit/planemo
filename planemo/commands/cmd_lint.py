@@ -16,16 +16,8 @@ LINTING_TOOL_MESSAGE = "Linting tool %s"
 
 @click.command('lint')
 @options.optional_tools_arg()
-@click.option(
-    '--report_level',
-    type=click.Choice(['all', 'warn', 'error']),
-    default="all"
-)
-@click.option(
-    '--fail_level',
-    type=click.Choice(['warn', 'error']),
-    default="warn"
-)
+@options.report_level_option()
+@options.fail_level_option()
 @pass_context
 def cli(ctx, path, report_level="all", fail_level="warn"):
     """Check specified tool(s) for common errors and adherence to best

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema 
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    elementFormDefault="qualified"
+    attributeFormDefault="unqualified"
+    >
+  <!-- More accurate information - 
+       https://wiki.galaxyproject.org/ToolDependenciesTagSets
+
+       TODO: fill in a lot more information - everything below package,
+       set environment things, etc...
+  -->
+  <xs:annotation>
+    <xs:appinfo>Tool Shed tool_dependencies.xml Schema</xs:appinfo>
+    <xs:documentation xml:lang="en">Describes dependencies for a tool shed repository.</xs:documentation>
+  </xs:annotation>
+
+  <xs:complexType name="ToolDependency">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">Collection of package definitions. </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="package" type="Package" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Package">
+    <xs:annotation>
+      <xs:documentation xml:lang="en">A package is a type of tool dependency and the combination of the name and version provide a unique identifier for it. It can contain any number of &lt;repository&gt; tag.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:any minOccurs="0"/>
+    </xs:sequence>
+	<xs:attribute name="name" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Package name</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+	<xs:attribute name="version" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Package version</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:element name="tool_dependency" type="ToolDependency" />
+</xs:schema>

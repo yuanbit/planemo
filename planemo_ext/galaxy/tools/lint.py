@@ -18,13 +18,7 @@ def lint_xml(tool_xml, use_schema=False, level=LEVEL_ALL, fail_level=LEVEL_WARN)
                     lint_context.lint(module, name, value, tool_xml)
                 except SkipLint:
                     pass
-    found_warns = lint_context.found_warns
-    found_errors = lint_context.found_errors
-    if fail_level == LEVEL_WARN:
-        lint_fail = (found_warns or found_errors)
-    else:
-        lint_fail = found_errors
-    return not lint_fail
+    return lint_context.failed(fail_level)
 
 
 class LintContext(object):
@@ -93,6 +87,15 @@ class LintContext(object):
 
     def warn(self, message, *args):
         self.__handle_message(self.warn_messages, message, *args)
+
+    def failed(self, fail_level):
+        found_warns = self.found_warns
+        found_errors = self.found_errors
+        if fail_level == LEVEL_WARN:
+            lint_fail = (found_warns or found_errors)
+        else:
+            lint_fail = found_errors
+        return not lint_fail
 
 
 class SkipLint(Exception):

@@ -12,4 +12,3 @@ def lint_via_xsd(tool_xml, lint_ctx):
     if etree is None:
         lint_ctx.error("Requested linting via XML Schema but lxml is unavailable")
         return
-    
