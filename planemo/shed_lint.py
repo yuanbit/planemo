@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import yaml
 from galaxy.tools.lint import LintContext
@@ -16,6 +17,7 @@ from planemo.tool_lint import (
     yield_tool_xmls,
     handle_tool_load_error,
 )
+import xml.etree.ElementTree as ET
 from planemo.shed2tap import base
 from planemo.xml import XSDS_PATH
 
@@ -87,7 +89,6 @@ def lint_repository(ctx, realized_repository, **kwds):
         path,
     )
     if kwds["urls"]:
-        tool_dependencies = os.
         lint_ctx.lint(
             "lint_urls",
             lint_tool_depenencies_urls,
@@ -191,7 +192,9 @@ def lint_tool_dependencies_xsd(path, lint_ctx):
     if not os.path.exists(tool_dependencies):
         lint_ctx.info("No tool_dependencies.xml, skipping.")
         return
-    lint_xsd(lint_ctx, TOOL_DEPENDENCIES_XSD, tool_dependencies)
+
+    root = ET.parse(tool_dependencies).getroot()
+    lint_urls(root, lint_ctx)
 
 
 def lint_tool_dependencies_actions(path, lint_ctx):
