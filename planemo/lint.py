@@ -23,7 +23,7 @@ def lint_urls(root, lint_ctx):
     def validate_url(url, lint_ctx):
         try:
             handle = urllib2.urlopen(url)
-            _ = handle.read(100)
+            handle.read(100)
             lint_ctx.info("URL OK %s" % url)
         except urllib2.HTTPError, e:
             lint_ctx.error("HTTP Error %s accessing %s" % (e.code, url))

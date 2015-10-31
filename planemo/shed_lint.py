@@ -2,7 +2,7 @@ import os
 import yaml
 from galaxy.tools.lint import LintContext
 from galaxy.tools.linters.help import rst_invalid
-from planemo.lint import lint_xsd
+from planemo.lint import lint_xsd, lint_urls
 from planemo.shed import (
     REPO_TYPE_UNRESTRICTED,
     REPO_TYPE_TOOL_DEP,
@@ -87,9 +87,10 @@ def lint_repository(ctx, realized_repository, **kwds):
         path,
     )
     if kwds["urls"]:
+        tool_dependencies = os.
         lint_ctx.lint(
             "lint_urls",
-            lint_urls,
+            lint_tool_depenencies_urls,
             path,
         )
     if kwds["tools"]:
@@ -175,6 +176,14 @@ def lint_readme(path, lint_ctx):
         lint_ctx.info("README found containing valid reStructuredText.")
     else:
         lint_ctx.info("README found containing plain text.")
+
+def lint_tool_depenencies_urls(path, lint_ctx):
+    tool_dependencies = os.path.join(path, "tool_dependencies.xml")
+    if not os.path.exists(tool_dependencies):
+        lint_ctx.info("No tool_dependencies.xml, skipping.")
+        return
+
+    lint_xsd(lint_ctx, TOOL_DEPENDENCIES_XSD, tool_dependencies)
 
 
 def lint_tool_dependencies_xsd(path, lint_ctx):

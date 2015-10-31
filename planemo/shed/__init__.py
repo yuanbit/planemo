@@ -15,7 +15,6 @@ from tempfile import (
 
 from six import iteritems
 import yaml
-from xml.etree import ElementTree as ET
 from planemo.shed2tap.base import BasePackage
 
 from planemo.io import (
