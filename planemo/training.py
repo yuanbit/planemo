@@ -207,16 +207,20 @@ def get_template_dir(kwds):
     return template_dir
 
 
-def change_topic_name(topic_name, filepath):
-    """Change the topic name in the top metadata of a file"""
-    with open(filepath, "r") as in_f:
-        content = in_f.read()
+def update_top_metadata_file(filepath, topic_name, tuto_name="tutorial1", keep=True):
+    """Update metadata on the top or delete a (tutorial or index) file """
+    if keep:
+        with open(filepath, "r") as in_f:
+            content = in_f.read()
 
-    content = content.replace("your_topic", topic_name)
-    content = content.replace("your_tutorial_name", "tutorial1")
+        content = content.replace("your_topic", topic_name)
+        content = content.replace("your_tutorial_name", tuto_name)
 
-    with open(filepath, 'w') as out_f:
-        out_f.write(content)
+        with open(filepath, 'w') as out_f:
+            out_f.write(content)
+
+    elif os.path.isfile(filepath):
+        os.remove(filepath)
 
 
 def create_topic(kwds, topic_dir, template_dir):
@@ -232,7 +236,7 @@ def create_topic(kwds, topic_dir, template_dir):
 
     # update the index.md to match your topic's name
     index_path = os.path.join(topic_dir, "index.md")
-    change_topic_name(kwds["topic_name"], index_path)
+    update_top_metadata_file(index_path, kwds["topic_name"])
 
     # update the metadata file
     metadata_path = os.path.join(topic_dir, "metadata.yaml")
@@ -248,9 +252,9 @@ def create_topic(kwds, topic_dir, template_dir):
     # update the metadata in top of tutorial.md and slides.html
     tuto_path = os.path.join(topic_dir, "tutorials", "tutorial1")
     hand_on_path = os.path.join(tuto_path, "tutorial.md")
-    change_topic_name(kwds["topic_name"], hand_on_path)
+    update_top_metadata_file(hand_on_path, kwds["topic_name"])
     slides_path = os.path.join(tuto_path, "slides.html")
-    change_topic_name(kwds["topic_name"], slides_path)
+    update_top_metadata_file(slides_path, kwds["topic_name"])
 
     # add a symbolic link to the metadata.yaml
     metadata_dir = "metadata"
@@ -261,24 +265,8 @@ def create_topic(kwds, topic_dir, template_dir):
     os.chdir("..")
 
 
-def update_tuto_file(filepath, keep, topic_name, tutorial_name):
-    """Update or delete a tutorial (hands-on or slide) file"""
-    if keep:
-        with open(filepath, "r") as in_f:
-            content = in_f.read()
-
-        content = content.replace("your_topic", topic_name)
-        content = content.replace("your_tutorial_name", tutorial_name)
-
-        with open(filepath, 'w') as out_f:
-            out_f.write(content)
-
-    elif os.path.isfile(filepath):
-        os.remove(filepath)
-
-
 def update_tutorial(kwds, tuto_dir, topic_dir):
-    """Update the metadata information of a tutorial"""
+    """Update the metadata information of a tutorial and add it if not there"""
     # update the metadata file to add the new tutorial
     metadata_path = os.path.join(topic_dir, "metadata.yaml")
 
@@ -290,7 +278,7 @@ def update_tutorial(kwds, tuto_dir, topic_dir):
             mat["title"] = kwds["tutorial_title"]
             mat["hands_on"] = kwds["hands_on"]
             mat["slides"] = kwds["slides"]
-            mat["workflows"] = True if kwds["workflow"] else False
+            mat["workflows"] = True if kwds["workflow"] or kwds["workflow_id"] else False
             mat["zenodo_link"] = kwds["zenodo"] if kwds["zenodo"] else ''
             found = True
         elif mat["name"] == "tutorial1":
@@ -317,11 +305,11 @@ def update_tutorial(kwds, tuto_dir, topic_dir):
 
     # update the metadata in top of tutorial.md or remove it if not needed
     hand_on_path = os.path.join(tuto_dir, "tutorial.md")
-    update_tuto_file(hand_on_path, kwds["hands_on"], kwds["topic_name"], kwds["tutorial_name"])
+    update_top_metadata_file(hand_on_path, kwds["topic_name"], tuto_name=kwds["tutorial_name"], keep=kwds["hands_on"])
 
     # update the metadata in top of slides.md or remove it if not needed
     slides_path = os.path.join(tuto_dir, "slides.html")
-    update_tuto_file(slides_path, kwds["slides"], kwds["topic_name"], kwds["tutorial_name"])
+    update_top_metadata_file(slides_path, kwds["topic_name"], tuto_name=kwds["tutorial_name"], keep=kwds["slides"])
 
 
 def get_zenodo_record(zenodo_link):
@@ -339,6 +327,41 @@ def get_zenodo_record(zenodo_link):
     req_res = r.json()
 
     return(z_record, req_res)
+
+
+def get_galaxy_datatype(z_ext, datatype_fp):
+    """Get the Galaxy datatype corresponding to a Zenodo file type"""
+    g_datatype = ''
+    datatypes = load_yaml(datatype_fp)
+    if z_ext in datatypes:
+        g_datatype = datatypes[z_ext]
+    if g_datatype == '':
+        g_datatype = '# Please add a Galaxy datatype or update the shared/datatypes.yaml file'
+    info("Get Galaxy datatypes: %s --> %s" % (z_ext, g_datatype))
+    return g_datatype
+
+
+def get_files_from_zenodo(z_link, datatype_fp):
+    """Extract a list of URLs and dictionary describing the files from the JSON """
+    """output of the Zenodo API"""
+    z_record, req_res = get_zenodo_record(z_link)
+
+    links = []
+    if 'files' not in req_res:
+        raise ValueError("No files in the Zenodo record")
+
+    files = []
+    for f in req_res['files']:
+        file_dict = {'url': '', 'src': 'url', 'ext': '', 'info': z_link}
+        if 'type' in f:
+            file_dict['ext'] = get_galaxy_datatype(f['type'], datatype_fp)
+        if 'links' not in f and 'self' not in f['links']:
+            raise ValueError("No link for file %s" % f)
+        file_dict['url'] = f['links']['self']
+        links.append(f['links']['self'])
+        files.append(file_dict)
+
+    return (files, links, z_record)
 
 
 def prepare_data_library(files, kwds, z_record, tuto_dir):
@@ -404,70 +427,53 @@ def prepare_data_library(files, kwds, z_record, tuto_dir):
     save_to_yaml(data_lib, data_lib_filepath)
 
 
-def get_galaxy_datatype(z_ext, kwds):
-    """Get the Galaxy datatype corresponding to a Zenodo file type"""
-    g_datatype = ''
-    datatypes = load_yaml(kwds['datatypes'])
-    if z_ext in datatypes:
-        g_datatype = datatypes[z_ext]
-    if g_datatype == '':
-        g_datatype = '# Please add a Galaxy datatype or update the shared/datatypes.yaml file'
-    info("Get Galaxy datatypes: %s --> %s" % (z_ext, g_datatype))
-    return g_datatype
-
-
-def extract_from_zenodo(kwds, tuto_dir):
+def prepare_data_library_from_zenodo(kwds, tuto_dir):
     """Get the list of URLs of the files on Zenodo and fill the data library file"""
     links = []
     if not kwds['zenodo']:
         return links
-
-    z_record, req_res = get_zenodo_record(kwds['zenodo'])
-
-    # extract the URLs from the JSON
-    if 'files' not in req_res:
-        raise ValueError("No files in the Zenodo record")
-
-    files = []
-    for f in req_res['files']:
-        file_dict = {'url': '', 'src': 'url', 'ext': '', 'info': kwds['zenodo']}
-        if 'type' in f:
-            file_dict['ext'] = get_galaxy_datatype(f['type'], kwds)
-        if 'links' not in f and 'self' not in f['links']:
-            raise ValueError("No link for file %s" % f)
-        file_dict['url'] = f['links']['self']
-        links.append(f['links']['self'])
-        files.append(file_dict)
-
-    # prepare the data library dictionary
+    files, links, z_record = get_files_from_zenodo(kwds['zenodo'], kwds['datatypes'])
     prepare_data_library(files, kwds, z_record, tuto_dir)
-
     return links
 
 
-def get_input_tool_name(step_id, steps):
-    """Get the string with the name of the tool that generated an input"""
-    inp_provenance = ''
-    inp_prov_id = str(step_id)
-    if inp_prov_id in steps:
-        name = steps[inp_prov_id]['name']
-        if name == 'Input dataset':
-            inp_provenance = "(input dataset)"
-        else:
-            inp_provenance = "(output of **%s** {%% icon tool %%})" % name
-    return inp_provenance
+def get_wf_tool_description(wf, gi):
+    """Get a dictionary with description of inputs of all tools in a workflow"""
+    tools = {}
+    for s in wf['steps']:
+        step = wf['steps'][s]
+        if len(step['input_connections']) == 0:
+            continue
+        try:
+            tool_desc = gi.tools.show_tool(step['tool_id'], io_details=True)
+        except Exception:
+            tool_desc = {'inputs': []}
+        tools.setdefault(step['name'], get_tool_input(tool_desc))
+    return tools
 
 
-def get_tool_input(tool_desc):
-    """Get a dictionary with label being the tool parameter name and the value the description
-    of the parameter extracted from the show_tool function of bioblend"""
-    tool_inp = collections.OrderedDict()
-    for inp in tool_desc["inputs"]:
-        tool_inp.setdefault(inp['name'], inp)
-    return tool_inp
+def serve_wf_locally(kwds, wf_filepath, ctx):
+    """Server local Galaxy and get the workflow dictionary"""
+    assert is_galaxy_engine(**kwds)
+    runnable = for_path(wf_filepath)
+    with engine_context(ctx, **kwds) as galaxy_engine:
+        with galaxy_engine.ensure_runnables_served([runnable]) as config:
+            workflow_id = config.workflow_id(wf_filepath)
+            wf = config.gi.workflows.export_workflow_dict(workflow_id)
+            tools = get_wf_tool_description(wf, config.gi)
+    return wf, tools
+
+
+def get_wf_tools_from_running_galaxy(kwds):
+    """Get the workflow dictionary from a running Galaxy instance with the workflow installed there"""
+    gi = galaxy.GalaxyInstance(kwds['galaxy_url'], key=kwds['galaxy_api_key'])
+    wf = gi.workflows.export_workflow_dict(kwds['workflow_id'])
+    tools = get_wf_tool_description(wf, gi)
+    return wf, tools
 
 
 def format_inputs(wf_inputs, tp_desc, wf_steps, level):
+    """Format the inputs of a step"""
     inputlist = ''
     for inp_n, inp in wf_inputs.items():
         if inp_n != tp_desc['name']:
@@ -494,6 +500,28 @@ def format_inputs(wf_inputs, tp_desc, wf_steps, level):
         }
         inputlist += templates.render(INPUT_FILE_TEMPLATE, **context)
     return inputlist
+
+
+def get_input_tool_name(step_id, steps):
+    """Get the string with the name of the tool that generated an input"""
+    inp_provenance = ''
+    inp_prov_id = str(step_id)
+    if inp_prov_id in steps:
+        name = steps[inp_prov_id]['name']
+        if name == 'Input dataset':
+            inp_provenance = "(input dataset)"
+        else:
+            inp_provenance = "(output of **%s** {%% icon tool %%})" % name
+    return inp_provenance
+
+
+def get_tool_input(tool_desc):
+    """Get a dictionary with label being the tool parameter name and the value the description
+    of the parameter extracted from the show_tool function of bioblend"""
+    tool_inp = collections.OrderedDict()
+    for inp in tool_desc["inputs"]:
+        tool_inp.setdefault(inp['name'], inp)
+    return tool_inp
 
 
 def format_section_param_desc(wf_params, wf_inputs, tp_desc, level, wf_steps):
@@ -617,41 +645,6 @@ def get_handson_box(step_id, steps, tools):
     return templates.render(HANDS_ON_TOOL_BOX_TEMPLATE, **context)
 
 
-def get_wf_from_running_galaxy(kwds, ctx):
-    """Get the workflow dictionary from a running Galaxy instance with the workflow installed there"""
-    gi = galaxy.GalaxyInstance(kwds['galaxy_url'], key=kwds['galaxy_api_key'])
-    wf = gi.workflows.export_workflow_dict(kwds['workflow_id'])
-    tools = get_wf_tool_description(wf, gi)
-    return wf, tools
-
-
-def get_wf_tool_description(wf, gi):
-    """Get a dictionary with description of inputs of all tools in a workflow"""
-    tools = {}
-    for s in wf['steps']:
-        step = wf['steps'][s]
-        if len(step['input_connections']) == 0:
-            continue
-        try:
-            tool_desc = gi.tools.show_tool(step['tool_id'], io_details=True)
-        except Exception:
-            tool_desc = {'inputs': []}
-        tools.setdefault(step['name'], get_tool_input(tool_desc))
-    return tools
-
-
-def serve_wf_locally(kwds, wf_filepath, ctx):
-    """Server local Galaxy and get the workflow dictionary"""
-    assert is_galaxy_engine(**kwds)
-    runnable = for_path(wf_filepath)
-    with engine_context(ctx, **kwds) as galaxy_engine:
-        with galaxy_engine.ensure_runnables_served([runnable]) as config:
-            workflow_id = config.workflow_id(wf_filepath)
-            wf = config.gi.workflows.export_workflow_dict(workflow_id)
-            tools = get_wf_tool_description(wf, config.gi)
-    return wf, tools
-
-
 def create_tutorial_from_workflow(kwds, z_file_links, tuto_dir, ctx):
     """Create tutorial structure from the workflow file"""
     # load workflow
@@ -660,7 +653,7 @@ def create_tutorial_from_workflow(kwds, z_file_links, tuto_dir, ctx):
             raise ValueError("No Galaxy URL given")
         if not kwds['galaxy_api_key']:
             raise ValueError("No API key to access Galaxy given")
-        wf, tools = get_wf_from_running_galaxy(kwds, ctx)
+        wf, tools = get_wf_tools_from_running_galaxy(kwds)
     else:
         wf, tools = serve_wf_locally(kwds, kwds["workflow"], ctx)
 
@@ -714,7 +707,7 @@ def create_tutorial(kwds, tuto_dir, topic_dir, template_dir, ctx):
     z_file_links = ''
     if kwds["zenodo"]:
         info("Create the data library from Zenodo")
-        z_file_links = extract_from_zenodo(kwds, tuto_dir)
+        z_file_links = prepare_data_library_from_zenodo(kwds, tuto_dir)
 
     # create tutorial skeleton from workflow and copy workflow file
     if kwds["workflow"] or kwds['workflow_id']:
@@ -801,7 +794,7 @@ def fill_data_library(ctx, kwds):
         'zenodo': z_link,
         'datatypes': kwds['datatypes']
     }
-    extract_from_zenodo(topic_kwds, tuto_dir)
+    prepare_data_library_from_zenodo(topic_kwds, tuto_dir)
 
     # update the metadata
     save_to_yaml(metadata, metadata_path)
